@@ -2,160 +2,103 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>わんバトル</title>
+<title>わんコレクション</title>
 <style>
   body {
     font-family: "Arial", sans-serif;
-    background-color: #f0f8ff;
+    background-color: #fff5ee;
     text-align: center;
     padding: 20px;
   }
   h1 { color: #ff6f61; }
-  .dog-container {
+  .dog-area {
     display: flex;
     justify-content: center;
-    gap: 50px;
+    gap: 20px;
+    flex-wrap: wrap;
     margin-bottom: 20px;
   }
   .dog {
     border: 2px solid #ccc;
-    padding: 10px;
     border-radius: 10px;
-    width: 150px;
+    padding: 10px;
+    width: 120px;
+    cursor: pointer;
+    background-color: #fff8dc;
   }
   .dog img {
     width: 100px;
     height: 100px;
   }
-  .hp-bar {
-    height: 20px;
-    background-color: #4caf50;
-    margin-top: 5px;
-  }
-  button {
-    margin: 5px;
-    padding: 10px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    border-radius: 5px;
-  }
   #log {
     margin-top: 20px;
-    height: 100px;
+    height: 120px;
     overflow-y: auto;
     border: 1px solid #ccc;
     padding: 10px;
-    background-color: #fff;
+    background-color: #fdf5e6;
     text-align: left;
+  }
+  #points {
+    font-weight: bold;
+    margin-bottom: 10px;
   }
 </style>
 </head>
 <body>
 
-<h1>🐶わんバトル🐶</h1>
+<h1>🐶わんコレクション🐶</h1>
+<div id="points">ポイント: 0</div>
 
-<div class="dog-container">
-  <div class="dog" id="playerDog">
-    <h2>ちわわ</h2>
-    <img src="https://i.imgur.com/0KXy6.png" alt="ちわわ">
-    <div>HP: <span id="playerHp">100</span></div>
-    <div class="hp-bar" id="playerHpBar"></div>
-  </div>
-
-  <div class="dog" id="enemyDog">
-    <h2>ポメラニアン</h2>
-    <img src="https://i.imgur.com/1g0qC.png" alt="ポメラニアン">
-    <div>HP: <span id="enemyHp">100</span></div>
-    <div class="hp-bar" id="enemyHpBar"></div>
-  </div>
-</div>
-
-<div>
-  <button onclick="attack('かむ')">かむ</button>
-  <button onclick="attack('ぱんち')">ぱんち</button>
-  <button onclick="attack('吠える')">吠える</button>
-  <button onclick="attack('甘える')">甘える</button>
+<div class="dog-area" id="dogArea">
+  <!-- 犬がここに表示される -->
 </div>
 
 <div id="log"></div>
 
 <script>
-let playerHp = 100;
-let enemyHp = 100;
+const dogs = [
+  { name: "ちわわ", img: "https://i.imgur.com/0KXy6.png", quiz: "小さな犬です。犬種は？", answer: "ちわわ", rare: false },
+  { name: "ポメラニアン", img: "https://i.imgur.com/1g0qC.png", quiz: "ふわふわした毛の犬です。犬種は？", answer: "ポメラニアン", rare: false },
+  { name: "ゴールデンレトリバー", img: "https://i.imgur.com/Kz0qG.png", quiz: "大型で人懐こい犬です。犬種は？", answer: "ゴールデンレトリバー", rare: true },
+];
 
-function updateHp() {
-  document.getElementById('playerHp').textContent = playerHp;
-  document.getElementById('enemyHp').textContent = enemyHp;
-  document.getElementById('playerHpBar').style.width = playerHp + '%';
-  document.getElementById('enemyHpBar').style.width = enemyHp + '%';
-}
+let points = 0;
+const dogArea = document.getElementById('dogArea');
+const log = document.getElementById('log');
+const pointsDisplay = document.getElementById('points');
 
 function logMessage(msg) {
-  const log = document.getElementById('log');
   log.innerHTML += msg + "<br>";
   log.scrollTop = log.scrollHeight;
 }
 
-function attack(action) {
-  let damage = 0;
-  let message = '';
-  
-  switch(action) {
-    case 'かむ':
-      damage = Math.floor(Math.random() * 15) + 10;
-      message = `プレイヤーの犬が「かむ」を使った！ ${damage}ダメージ！`;
-      break;
-    case 'ぱんち':
-      damage = Math.floor(Math.random() * 25) + 15;
-      message = `プレイヤーの犬が「ぱんち」を使った！ ${damage}ダメージ！`;
-      break;
-    case '吠える':
-      damage = 0;
-      message = '敵のスピードが下がった！（効果は簡略化）';
-      break;
-    case '甘える':
-      if(Math.random() < 0.5) {
-        damage = 0;
-        message = '敵が行動できない！（甘える成功！）';
-        enemyHp -= 0; // ダメージなし
-        logMessage(message);
-        return;
-      } else {
-        damage = 0;
-        message = '甘える失敗…';
-        break;
-      }
-  }
-
-  enemyHp -= damage;
-  if(enemyHp < 0) enemyHp = 0;
-  logMessage(message);
-  updateHp();
-
-  if(enemyHp <= 0) {
-    logMessage('🎉勝利！敵の犬を倒した！');
-    return;
-  }
-
-  // 敵の攻撃
-  setTimeout(enemyAttack, 500);
+function spawnDogs() {
+  dogArea.innerHTML = "";
+  const shuffled = dogs.sort(() => 0.5 - Math.random());
+  shuffled.slice(0, 3).forEach(dog => {
+    const dogDiv = document.createElement('div');
+    dogDiv.className = "dog";
+    dogDiv.innerHTML = `<h3>${dog.name}</h3><img src="${dog.img}" alt="${dog.name}">`;
+    dogDiv.onclick = () => captureDog(dog);
+    dogArea.appendChild(dogDiv);
+  });
 }
 
-function enemyAttack() {
-  const actions = ['かむ', 'ぱんち'];
-  const choice = actions[Math.floor(Math.random() * actions.length)];
-  let damage = choice === 'かむ' ? Math.floor(Math.random() * 10) + 5 : Math.floor(Math.random() * 20) + 10;
-  playerHp -= damage;
-  if(playerHp < 0) playerHp = 0;
-  logMessage(`敵の犬が「${choice}」を使った！ ${damage}ダメージ！`);
-  updateHp();
-
-  if(playerHp <= 0) {
-    logMessage('💀敗北…あなたの犬は倒された。');
+function captureDog(dog) {
+  const userAnswer = prompt(dog.quiz);
+  if(userAnswer && userAnswer.trim() === dog.answer) {
+    const earned = dog.rare ? 20 : 10;
+    points += earned;
+    pointsDisplay.textContent = `ポイント: ${points}`;
+    logMessage(`✅ ${dog.name}を捕まえた！ +${earned}ポイント`);
+  } else {
+    logMessage(`❌ ${dog.name}の捕獲失敗…`);
   }
+  spawnDogs();
 }
 
-updateHp();
+spawnDogs();
 </script>
 
 </body>
