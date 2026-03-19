@@ -2,224 +2,130 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>人狼ゲーム 完全版</title>
+<title>人狼風合体ゲーム</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.14.2/matter.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
 
 <style>
 body{
-  font-family:sans-serif;
+  margin:0;
+  background:#222;
+  color:white;
   text-align:center;
-  background:linear-gradient(135deg,#1a1a1a,#333);
-  color:white;
 }
-.box{
-  background:#333;
-  padding:15px;
-  margin:15px;
-  border-radius:10px;
-  display:inline-block;
+#score{
+  font-size:30px;
 }
-button{
-  padding:10px;
-  margin:5px;
-  border:none;
-  border-radius:8px;
-  background:#ff4c4c;
-  color:white;
-}
-.dead{color:gray;}
-#role{font-size:22px;margin-top:10px;}
-a{color:skyblue;}
 </style>
 </head>
 
 <body>
-
-<h1>🐺 人狼ゲーム（完全版）</h1>
-
-<div class="box">
-<h2>📖 遊び方</h2>
-<p>
-① ゲーム作成<br>
-② URL共有<br>
-③ 参加する<br>
-④ 役職確認<br>
-⑤ ゲーム開始
-</p>
-</div>
-
-<button onclick="createGame()">ゲーム作成</button>
-<p id="share"></p>
-
-<button onclick="joinGame()">参加する</button>
-<div id="role" onclick="showRole()">タップで役職表示</div>
-
-<hr>
-
-<button onclick="startGame()">ゲーム開始（進行役）</button>
-<div id="game"></div>
+<div>score:<span id="score">0</span></div>
 
 <script>
-let myIndex=null;
-let roleList=[];
-let players=[];
-let phase="day";
-let guard=-1;
+// ===== Matter.js =====
+const { Engine, Render, World, Bodies, Body, Events } = Matter;
 
-// ===== URL =====
-function createGame(){
-  let roles=["人狼","市民","市民","市民","狂人","占い師","騎士"];
-  roles.sort(()=>Math.random()-0.5);
+let total_score = 0;
 
-  let url=location.origin+location.pathname+
-  "?roles="+encodeURIComponent(roles.join(","))+"&used=";
+// オブジェクト
+const objectDefinitions = [
+ { texture: "https://via.placeholder.com/50", size: 25, label: "a", originalWidth:50, originalHeight:50, score:10 },
+ { texture: "https://via.placeholder.com/60", size: 35, label: "b", originalWidth:60, originalHeight:60, score:20 },
+ { texture: "https://via.placeholder.com/70", size: 45, label: "c", originalWidth:70, originalHeight:70, score:30 }
+];
 
-  document.getElementById("share").innerHTML=
-  "URL👇<br><a href='"+url+"'>"+url+"</a>";
-}
-
-function joinGame(){
-  let params=new URLSearchParams(location.search);
-  let roles=params.get("roles");
-  let used=params.get("used")||"";
-
-  if(!roles){alert("先に作成");return;}
-
-  roleList=roles.split(",");
-  let usedArr=used?used.split(","):[];
-
-  for(let i=0;i<roleList.length;i++){
-    if(!usedArr.includes(String(i))){
-      myIndex=i;
-      usedArr.push(String(i));
-      break;
-    }
-  }
-
-  let newUrl=location.origin+location.pathname+
-  "?roles="+encodeURIComponent(roleList.join(","))+
-  "&used="+usedArr.join(",");
-
-  history.replaceState(null,"",newUrl);
-
-  alert("あなたはP"+(myIndex+1));
-}
-
-function showRole(){
-  if(myIndex===null){alert("参加して");return;}
-  alert("あなたの役職："+roleList[myIndex]);
-}
-
-// ===== ゲーム =====
-function startGame(){
-  if(roleList.length===0){
-    alert("先に参加して");
-    return;
-  }
-
-  players=roleList.map((r,i)=>({
-    id:i,
-    role:r,
-    alive:true
-  }));
-
-  render();
-}
-
-function render(){
-  let myRole=roleList[myIndex];
-  let html=`<h2>${phase==="day"?"昼":"夜"}</h2>`;
-
-  players.forEach((p,i)=>{
-    html+=`<div class="${!p.alive?"dead":""}">
-    P${i+1} ${p.alive?"":"💀"}
-    </div>`;
+// ランダム生成
+function createRandomFallingObject(x, y){
+  const def = objectDefinitions[Math.floor(Math.random()*objectDefinitions.length)];
+  return Bodies.circle(x, y, def.size, {
+    label: def.label,
+    isStatic: true,
+    render:{ sprite:{ texture:def.texture } }
   });
+}
 
-  html+="<br>";
+// 次の進化
+function getNext(label){
+  for(let i=0;i<objectDefinitions.length;i++){
+    if(objectDefinitions[i].label===label){
+      return objectDefinitions[i+1] || null;
+    }
+  }
+}
 
-  if(phase==="day"){
-    html+="<h3>投票</h3>";
-    players.forEach((p,i)=>{
-      if(p.alive){
-        html+=`<button onclick="vote(${i})">P${i+1}</button>`;
+// エンジン
+const engine = Engine.create();
+const render = Render.create({
+  element: document.body,
+  engine: engine,
+  options:{
+    width:400,
+    height:600,
+    wireframes:false
+  }
+});
+
+const width = 400;
+const height = 600;
+
+// 壁
+World.add(engine.world, [
+  Bodies.rectangle(width/2,height, width,20,{isStatic:true}),
+  Bodies.rectangle(0,height/2,20,height,{isStatic:true}),
+  Bodies.rectangle(width,height/2,20,height,{isStatic:true})
+]);
+
+// 合体
+Events.on(engine,'collisionStart',e=>{
+  e.pairs.forEach(pair=>{
+    if(pair.bodyA.label===pair.bodyB.label){
+      const next = getNext(pair.bodyA.label);
+      if(next){
+        total_score += next.score;
+        $('#score').text(total_score);
+
+        const x = (pair.bodyA.position.x + pair.bodyB.position.x)/2;
+        const y = (pair.bodyA.position.y + pair.bodyB.position.y)/2;
+
+        World.remove(engine.world,[pair.bodyA,pair.bodyB]);
+        World.add(engine.world,
+          Bodies.circle(x,y,next.size,{label:next.label})
+        );
       }
-    });
-    html+=`<br><button onclick="phase='night';render()">夜へ</button>`;
+    }
+  });
+});
+
+// 操作
+let nextObject = createRandomFallingObject(width/2,50);
+let falling = false;
+World.add(engine.world,nextObject);
+
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){
+    falling = true;
+    Body.setStatic(nextObject,false);
+
+    setTimeout(()=>{
+      nextObject = createRandomFallingObject(width/2,50);
+      falling = false;
+      World.add(engine.world,nextObject);
+    },1000);
   }
 
-  if(phase==="night"){
-    html+="<h3>夜行動</h3>";
-
-    if(myRole==="人狼"){
-      html+="🐺 襲撃<br>";
-      players.forEach((p,i)=>{
-        if(p.alive){
-          html+=`<button onclick="attack(${i})">P${i+1}</button>`;
-        }
-      });
-    }
-    else if(myRole==="占い師"){
-      html+="🔮 占い<br>";
-      players.forEach((p,i)=>{
-        if(p.alive){
-          html+=`<button onclick="fortune(${i})">P${i+1}</button>`;
-        }
-      });
-    }
-    else if(myRole==="騎士"){
-      html+="🛡 守る<br>";
-      players.forEach((p,i)=>{
-        if(p.alive){
-          html+=`<button onclick="guardPlayer(${i})">P${i+1}</button>`;
-        }
-      });
-    }
-    else{
-      html+="何もできない";
-    }
-
-    html+=`<br><button onclick="phase='day';render()">昼へ</button>`;
+  if(e.code==='ArrowLeft' && !falling){
+    Body.translate(nextObject,{x:-20,y:0});
   }
 
-  document.getElementById("game").innerHTML=html;
-}
-
-// ===== 行動 =====
-function vote(i){
-  players[i].alive=false;
-  alert("処刑");
-  checkWin();
-  render();
-}
-
-function attack(i){
-  if(i===guard){
-    alert("守られた");
-  }else{
-    players[i].alive=false;
-    alert("襲撃成功");
+  if(e.code==='ArrowRight' && !falling){
+    Body.translate(nextObject,{x:20,y:0});
   }
-  guard=-1;
-  checkWin();
-  render();
-}
+});
 
-function fortune(i){
-  alert(players[i].role==="人狼"?"人狼":"白");
-}
-
-function guardPlayer(i){
-  guard=i;
-  alert("守った");
-}
-
-function checkWin(){
-  let wolf=players.filter(p=>p.role==="人狼"&&p.alive).length;
-  let human=players.filter(p=>p.role!=="人狼"&&p.alive).length;
-
-  if(wolf===0) alert("村人勝ち");
-  if(wolf>=human) alert("人狼勝ち");
-}
+Render.run(render);
+Engine.run(engine);
 </script>
 
 </body>
