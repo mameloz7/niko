@@ -2,48 +2,48 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>KAKI-WARS</title>
+<title>KAKI-WARS 完成版</title>
 <style>
 body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
   margin: 0;
   background: black;
   color: white;
+  font-family: sans-serif;
+  text-align: center;
 }
 canvas {
   border: 1px solid white;
+  margin-top: 10px;
 }
 #ui {
-  position: absolute;
-  top: 10px;
-  left: 10px;
+  margin-top: 10px;
 }
 video {
   width: 120px;
-  display: block;
 }
 button {
-  margin-top: 5px;
+  margin: 5px;
+  padding: 8px;
 }
 </style>
 </head>
 <body>
 
+<h1>KAKI-WARS</h1>
+
 <div id="ui">
-  <video id="video" autoplay></video>
+  <video id="video" autoplay></video><br>
   <button onclick="startCamera()">カメラON</button>
   <button onclick="takePhoto()">撮影</button>
+  <button onclick="startGame()">スタート</button>
 </div>
 
 <canvas id="gameCanvas" width="480" height="320"></canvas>
 <canvas id="photoCanvas" style="display:none;"></canvas>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
 const video = document.getElementById("video");
 const photoCanvas = document.getElementById("photoCanvas");
@@ -51,6 +51,7 @@ const photoCtx = photoCanvas.getContext("2d");
 
 let faceImage = null;
 
+// ===== カメラ =====
 function startCamera() {
   navigator.mediaDevices.getUserMedia({ video: true })
     .then(stream => video.srcObject = stream)
@@ -68,99 +69,123 @@ function takePhoto() {
   alert("撮影完了！");
 }
 
-// プレイヤー
+// ===== ゲーム状態 =====
+let gameStarted = false;
+let score = 0;
+
 let player = {
-  x: canvas.width / 2,
-  y: canvas.height - 80,
-  size: 50,
+  x: 200,
+  y: 260,
+  size: 40,
   speed: 5,
   bullets: []
 };
 
-// 入力
-const keys = {};
-document.addEventListener('keydown', e => {
-  keys[e.code] = true;
-
-  if (e.code === 'Space') {
-    player.bullets.push({
-      x: player.x + player.size/2 - 2,
-      y: player.y,
-      size: 4,
-      speed: 7
-    });
-  }
-});
-document.addEventListener('keyup', e => keys[e.code] = false);
-
-// 敵
 let enemies = [];
 let spawnTimer = 0;
-let score = 0;
 
-// 画像
-let playerImg = new Image();
-playerImg.src = "忍者-ジャンプ4.png";
+// ===== 操作 =====
+const keys = {};
+document.addEventListener("keydown", e => {
+  keys[e.code] = true;
 
-let defaultEnemy = new Image();
-defaultEnemy.src = "kaki.png";
+  if (e.code === "Space" && gameStarted) {
+    shoot();
+  }
+});
+document.addEventListener("keyup", e => keys[e.code] = false);
 
-// 更新
+canvas.addEventListener("click", () => {
+  if (gameStarted) shoot();
+});
+
+function shoot() {
+  player.bullets.push({
+    x: player.x + player.size/2,
+    y: player.y,
+    size: 4,
+    speed: 7
+  });
+}
+
+// ===== スタート =====
+function startGame() {
+  score = 0;
+  enemies = [];
+  player.bullets = [];
+  gameStarted = true;
+}
+
+// ===== 描画 =====
+function drawPlayer() {
+  ctx.fillStyle = "cyan";
+  ctx.fillRect(player.x, player.y, player.size, player.size);
+}
+
+// ===== 更新 =====
 function update() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // プレイヤー移動
-  if (keys['ArrowLeft']) player.x -= player.speed;
-  if (keys['ArrowRight']) player.x += player.speed;
+  if (!gameStarted) {
+    ctx.fillStyle = "white";
+    ctx.fillText("スタートを押してね", 170, 150);
+    requestAnimationFrame(update);
+    return;
+  }
 
-  // 描画
-  ctx.drawImage(playerImg, player.x, player.y, player.size, player.size);
+  // 移動
+  if (keys["ArrowLeft"]) player.x -= player.speed;
+  if (keys["ArrowRight"]) player.x += player.speed;
+
+  drawPlayer();
 
   // 弾
   player.bullets.forEach(b => b.y -= b.speed);
   player.bullets = player.bullets.filter(b => b.y > 0);
 
   ctx.fillStyle = "lime";
-  player.bullets.forEach(b => {
-    ctx.fillRect(b.x,b.y,b.size,b.size);
-  });
+  player.bullets.forEach(b => ctx.fillRect(b.x,b.y,b.size,b.size));
 
   // 敵生成
   spawnTimer++;
   if (spawnTimer > 40) {
     enemies.push({
-      x: Math.random()*400,
+      x: Math.random()*440,
       y: 0,
       size: 40,
       speed: 2,
-      image: faceImage || defaultEnemy
+      image: faceImage
     });
     spawnTimer = 0;
   }
 
   // 敵処理
-  enemies.forEach(enemy => {
-    // 追いかける
-    let dx = player.x - enemy.x;
-    let dy = player.y - enemy.y;
+  enemies.forEach(e => {
+    let dx = player.x - e.x;
+    let dy = player.y - e.y;
     let dist = Math.sqrt(dx*dx + dy*dy);
 
     if (dist > 0) {
-      enemy.x += (dx/dist) * enemy.speed;
-      enemy.y += (dy/dist) * enemy.speed;
+      e.x += (dx/dist) * e.speed;
+      e.y += (dy/dist) * e.speed;
     }
 
-    ctx.drawImage(enemy.image, enemy.x, enemy.y, enemy.size, enemy.size);
+    if (e.image) {
+      ctx.drawImage(e.image, e.x, e.y, e.size, e.size);
+    } else {
+      ctx.fillStyle = "red";
+      ctx.fillRect(e.x, e.y, e.size, e.size);
+    }
   });
 
-  // 衝突判定（弾）
+  // 弾当たり判定
   player.bullets.forEach(b => {
     enemies.forEach(e => {
       if (
         b.x < e.x + e.size &&
-        b.x + b.size > e.x &&
+        b.x > e.x &&
         b.y < e.y + e.size &&
-        b.y + b.size > e.y
+        b.y > e.y
       ) {
         b.hit = true;
         e.hit = true;
@@ -172,7 +197,7 @@ function update() {
   player.bullets = player.bullets.filter(b => !b.hit);
   enemies = enemies.filter(e => !e.hit);
 
-  // 衝突（プレイヤー）
+  // プレイヤー衝突
   enemies.forEach(e => {
     if (
       player.x < e.x + e.size &&
@@ -191,7 +216,7 @@ function update() {
   requestAnimationFrame(update);
 }
 
-// ランキング
+// ===== ランキング =====
 function saveScore() {
   let scores = JSON.parse(localStorage.getItem("rank")) || [];
   scores.push(score);
@@ -205,23 +230,13 @@ function showRanking() {
   alert("ランキング\n" + scores.join("\n"));
 }
 
-// ゲームオーバー
+// ===== ゲームオーバー =====
 function gameOver() {
   saveScore();
   showRanking();
   alert("ゲームオーバー！スコア: " + score);
   location.reload();
 }
-
-// クリックでも発射
-canvas.addEventListener('click', () => {
-  player.bullets.push({
-    x: player.x + player.size/2,
-    y: player.y,
-    size: 4,
-    speed: 7
-  });
-});
 
 update();
 </script>
