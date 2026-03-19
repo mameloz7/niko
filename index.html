@@ -2,161 +2,136 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>大型犬クイズ</title>
+<title>Face Hunter</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background-color: #fffaf0;
-    text-align: center;
-    padding: 20px;
-  }
-  h1 { color: #ff6f61; }
-  #quizBox {
-    border: 2px solid #ccc;
-    border-radius: 10px;
-    background-color: #fff5ee;
-    padding: 20px;
-    display: inline-block;
-    margin-bottom: 20px;
-  }
-  #quizBox img {
-    width: 200px;
-    height: 200px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-  }
-  button {
-    margin: 5px;
-    padding: 10px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    border-radius: 5px;
-  }
-  #points {
-    font-weight: bold;
-    margin-bottom: 10px;
-  }
-  #log {
-    margin-top: 20px;
-    height: 120px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 10px;
-    background-color: #fff8dc;
-    text-align: left;
-  }
-  #ranking {
-    margin-top: 20px;
-    text-align: left;
-    display: inline-block;
-    border: 2px solid #ccc;
-    border-radius: 10px;
-    padding: 10px;
-    background-color: #f5f5dc;
-  }
+body {
+  margin: 0;
+  overflow: hidden;
+  background: black;
+  color: white;
+  font-family: sans-serif;
+}
+#game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+.face {
+  position: absolute;
+  font-size: 40px;
+  cursor: pointer;
+  user-select: none;
+}
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+#ranking {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  background: rgba(0,0,0,0.5);
+  padding: 10px;
+}
+button {
+  padding: 10px;
+}
 </style>
 </head>
 <body>
 
-<h1>🐶大型犬クイズ🐶</h1>
-<div id="points">ポイント: 0</div>
-
-<div id="quizBox">
-  <img id="dogImg" src="" alt="犬の写真">
-  <h3 id="question">どの犬種でしょう？</h3>
-  <div>
-    <button onclick="checkAnswer(0)" id="btn0">選択肢1</button>
-    <button onclick="checkAnswer(1)" id="btn1">選択肢2</button>
-    <button onclick="checkAnswer(2)" id="btn2">選択肢3</button>
-    <button onclick="checkAnswer(3)" id="btn3">選択肢4</button>
+<div id="game">
+  <div id="ui">
+    <div>スコア: <span id="score">0</span></div>
+    <div>残り時間: <span id="time">30</span></div>
+    <button onclick="startGame()">スタート</button>
+  </div>
+  <div id="ranking">
+    <b>ランキング</b>
+    <ol id="rankList"></ol>
   </div>
 </div>
 
-<div id="log"></div>
-
-<div id="ranking">
-  <h3>🏆ランキング</h3>
-  <ol id="rankList"></ol>
-</div>
-
 <script>
-const quizData = [
-  {
-    name: "ゴールデンレトリバー",
-    img: "https://i.imgur.com/Kz0qG.png",
-    options: ["ラブラドールレトリバー", "ゴールデンレトリバー", "セントバーナード", "グレートデーン"],
-    answer: 1
-  },
-  {
-    name: "セントバーナード",
-    img: "https://i.imgur.com/0A0rP.png",
-    options: ["セントバーナード", "ゴールデンレトリバー", "グレートデーン", "ラブラドールレトリバー"],
-    answer: 0
-  },
-  {
-    name: "グレートデーン",
-    img: "https://i.imgur.com/8FzCj.png",
-    options: ["グレートデーン", "セントバーナード", "ラブラドールレトリバー", "ゴールデンレトリバー"],
-    answer: 0
-  },
-  {
-    name: "ラブラドールレトリバー",
-    img: "https://i.imgur.com/1qBzY.png",
-    options: ["ラブラドールレトリバー", "グレートデーン", "セントバーナード", "ゴールデンレトリバー"],
-    answer: 0
-  }
-];
+let score = 0;
+let time = 30;
+let gameInterval;
+let spawnInterval;
 
-let points = 0;
-let current = 0;
-let ranking = [];
+function randomFace() {
+  const faces = ["😀","😈","😎","🤪","👻"];
+  return faces[Math.floor(Math.random()*faces.length)];
+}
 
-function showQuiz() {
-  if(current >= quizData.length) {
-    document.getElementById('quizBox').innerHTML = `<h3>🎉クイズ終了！合計ポイント: ${points}</h3>`;
-    updateRanking();
-    return;
-  }
-  const q = quizData[current];
-  document.getElementById('dogImg').src = q.img;
-  document.getElementById('dogImg').alt = q.name;
-  q.options.forEach((opt,i)=>{
-    document.getElementById('btn'+i).textContent = opt;
+function spawnFace() {
+  const face = document.createElement("div");
+  face.className = "face";
+  face.innerText = randomFace();
+
+  face.style.left = Math.random() * (window.innerWidth - 50) + "px";
+  face.style.top = Math.random() * (window.innerHeight - 50) + "px";
+
+  face.onclick = () => {
+    score += 10;
+    document.getElementById("score").innerText = score;
+    face.remove();
+  };
+
+  document.getElementById("game").appendChild(face);
+
+  setTimeout(() => face.remove(), 2000);
+}
+
+function startGame() {
+  score = 0;
+  time = 30;
+  document.getElementById("score").innerText = score;
+  document.getElementById("time").innerText = time;
+
+  clearInterval(gameInterval);
+  clearInterval(spawnInterval);
+
+  spawnInterval = setInterval(spawnFace, 500);
+
+  gameInterval = setInterval(() => {
+    time--;
+    document.getElementById("time").innerText = time;
+
+    if (time <= 0) {
+      endGame();
+    }
+  }, 1000);
+}
+
+function endGame() {
+  clearInterval(gameInterval);
+  clearInterval(spawnInterval);
+  saveScore(score);
+  loadRanking();
+  alert("ゲーム終了！スコア: " + score);
+}
+
+function saveScore(newScore) {
+  let scores = JSON.parse(localStorage.getItem("ranking")) || [];
+  scores.push(newScore);
+  scores.sort((a,b)=>b-a);
+  scores = scores.slice(0,5);
+  localStorage.setItem("ranking", JSON.stringify(scores));
+}
+
+function loadRanking() {
+  let scores = JSON.parse(localStorage.getItem("ranking")) || [];
+  const list = document.getElementById("rankList");
+  list.innerHTML = "";
+  scores.forEach(s => {
+    const li = document.createElement("li");
+    li.innerText = s;
+    list.appendChild(li);
   });
 }
 
-function logMessage(msg){
-  const log = document.getElementById('log');
-  log.innerHTML += msg + "<br>";
-  log.scrollTop = log.scrollHeight;
-}
-
-function checkAnswer(choice){
-  const q = quizData[current];
-  if(choice === q.answer){
-    points += 10;
-    logMessage(`✅ 正解！ +10ポイント`);
-  } else {
-    logMessage(`❌ 不正解…正解は ${q.options[q.answer]} です`);
-  }
-  ranking.push({name: q.name, pts: points});
-  updateRanking();
-  current++;
-  showQuiz();
-}
-
-function updateRanking(){
-  const rankList = document.getElementById('rankList');
-  const sorted = [...ranking].sort((a,b)=>b.pts-a.pts);
-  rankList.innerHTML = "";
-  sorted.forEach(item=>{
-    const li = document.createElement('li');
-    li.textContent = `${item.name} : ${item.pts}pt`;
-    rankList.appendChild(li);
-  });
-}
-
-showQuiz();
+loadRanking();
 </script>
 
 </body>
