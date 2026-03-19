@@ -1,3 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>KAKI-WARS</title>
+<style>
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  background: black;
+  color: white;
+}
+canvas {
+  border: 1px solid white;
+}
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+video {
+  width: 120px;
+  display: block;
+}
+button {
+  margin-top: 5px;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <video id="video" autoplay></video>
+  <button onclick="startCamera()">カメラON</button>
+  <button onclick="takePhoto()">撮影</button>
+</div>
+
+<canvas id="gameCanvas" width="480" height="320"></canvas>
+<canvas id="photoCanvas" style="display:none;"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
 const video = document.getElementById("video");
 const photoCanvas = document.getElementById("photoCanvas");
 const photoCtx = photoCanvas.getContext("2d");
@@ -6,9 +53,7 @@ let faceImage = null;
 
 function startCamera() {
   navigator.mediaDevices.getUserMedia({ video: true })
-    .then(stream => {
-      video.srcObject = stream;
-    })
+    .then(stream => video.srcObject = stream)
     .catch(() => alert("カメラ使えない"));
 }
 
@@ -20,5 +65,165 @@ function takePhoto() {
   faceImage = new Image();
   faceImage.src = photoCanvas.toDataURL("image/png");
 
-  alert("撮影OK！");
+  alert("撮影完了！");
 }
+
+// プレイヤー
+let player = {
+  x: canvas.width / 2,
+  y: canvas.height - 80,
+  size: 50,
+  speed: 5,
+  bullets: []
+};
+
+// 入力
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+
+  if (e.code === 'Space') {
+    player.bullets.push({
+      x: player.x + player.size/2 - 2,
+      y: player.y,
+      size: 4,
+      speed: 7
+    });
+  }
+});
+document.addEventListener('keyup', e => keys[e.code] = false);
+
+// 敵
+let enemies = [];
+let spawnTimer = 0;
+let score = 0;
+
+// 画像
+let playerImg = new Image();
+playerImg.src = "忍者-ジャンプ4.png";
+
+let defaultEnemy = new Image();
+defaultEnemy.src = "kaki.png";
+
+// 更新
+function update() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // プレイヤー移動
+  if (keys['ArrowLeft']) player.x -= player.speed;
+  if (keys['ArrowRight']) player.x += player.speed;
+
+  // 描画
+  ctx.drawImage(playerImg, player.x, player.y, player.size, player.size);
+
+  // 弾
+  player.bullets.forEach(b => b.y -= b.speed);
+  player.bullets = player.bullets.filter(b => b.y > 0);
+
+  ctx.fillStyle = "lime";
+  player.bullets.forEach(b => {
+    ctx.fillRect(b.x,b.y,b.size,b.size);
+  });
+
+  // 敵生成
+  spawnTimer++;
+  if (spawnTimer > 40) {
+    enemies.push({
+      x: Math.random()*400,
+      y: 0,
+      size: 40,
+      speed: 2,
+      image: faceImage || defaultEnemy
+    });
+    spawnTimer = 0;
+  }
+
+  // 敵処理
+  enemies.forEach(enemy => {
+    // 追いかける
+    let dx = player.x - enemy.x;
+    let dy = player.y - enemy.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist > 0) {
+      enemy.x += (dx/dist) * enemy.speed;
+      enemy.y += (dy/dist) * enemy.speed;
+    }
+
+    ctx.drawImage(enemy.image, enemy.x, enemy.y, enemy.size, enemy.size);
+  });
+
+  // 衝突判定（弾）
+  player.bullets.forEach(b => {
+    enemies.forEach(e => {
+      if (
+        b.x < e.x + e.size &&
+        b.x + b.size > e.x &&
+        b.y < e.y + e.size &&
+        b.y + b.size > e.y
+      ) {
+        b.hit = true;
+        e.hit = true;
+        score += 10;
+      }
+    });
+  });
+
+  player.bullets = player.bullets.filter(b => !b.hit);
+  enemies = enemies.filter(e => !e.hit);
+
+  // 衝突（プレイヤー）
+  enemies.forEach(e => {
+    if (
+      player.x < e.x + e.size &&
+      player.x + player.size > e.x &&
+      player.y < e.y + e.size &&
+      player.y + player.size > e.y
+    ) {
+      gameOver();
+    }
+  });
+
+  // スコア
+  ctx.fillStyle = "white";
+  ctx.fillText("Score: " + score, 10, 20);
+
+  requestAnimationFrame(update);
+}
+
+// ランキング
+function saveScore() {
+  let scores = JSON.parse(localStorage.getItem("rank")) || [];
+  scores.push(score);
+  scores.sort((a,b)=>b-a);
+  scores = scores.slice(0,5);
+  localStorage.setItem("rank", JSON.stringify(scores));
+}
+
+function showRanking() {
+  let scores = JSON.parse(localStorage.getItem("rank")) || [];
+  alert("ランキング\n" + scores.join("\n"));
+}
+
+// ゲームオーバー
+function gameOver() {
+  saveScore();
+  showRanking();
+  alert("ゲームオーバー！スコア: " + score);
+  location.reload();
+}
+
+// クリックでも発射
+canvas.addEventListener('click', () => {
+  player.bullets.push({
+    x: player.x + player.size/2,
+    y: player.y,
+    size: 4,
+    speed: 7
+  });
+});
+
+update();
+</script>
+</body>
+</html>
