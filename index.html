@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>人狼風合体ゲーム</title>
+<title>犬スイカゲーム</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.14.2/matter.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
@@ -10,52 +10,74 @@
 <style>
 body{
   margin:0;
-  background:#222;
+  background:#1e1e1e;
   color:white;
   text-align:center;
+  font-family:sans-serif;
 }
-#score{
-  font-size:30px;
+#ui{
+  display:flex;
+  justify-content:space-around;
+  padding:10px;
+}
+#next{
+  width:60px;
+  height:60px;
+}
+canvas{
+  border:2px solid white;
 }
 </style>
 </head>
 
 <body>
-<div>score:<span id="score">0</span></div>
+
+<div id="ui">
+  <div>Score: <span id="score">0</span></div>
+  <div>
+    NEXT<br>
+    <img id="next">
+  </div>
+</div>
 
 <script>
-// ===== Matter.js =====
 const { Engine, Render, World, Bodies, Body, Events } = Matter;
 
-let total_score = 0;
+let score = 0;
+let gameOver = false;
 
-// オブジェクト
-const objectDefinitions = [
- { texture: "https://via.placeholder.com/50", size: 25, label: "a", originalWidth:50, originalHeight:50, score:10 },
- { texture: "https://via.placeholder.com/60", size: 35, label: "b", originalWidth:60, originalHeight:60, score:20 },
- { texture: "https://via.placeholder.com/70", size: 45, label: "c", originalWidth:70, originalHeight:70, score:30 }
+// 🐶 犬データ（画像はあとで変えてOK）
+const dogs = [
+ {label:"chihuahua", size:20, img:"https://via.placeholder.com/40", score:10},
+ {label:"shiba", size:30, img:"https://via.placeholder.com/50", score:20},
+ {label:"corgi", size:40, img:"https://via.placeholder.com/60", score:30},
+ {label:"retriever", size:50, img:"https://via.placeholder.com/70", score:40},
+ {label:"husky", size:60, img:"https://via.placeholder.com/80", score:50}
 ];
 
+// 次取得
+function getNextDog(label){
+  const i = dogs.findIndex(d=>d.label===label);
+  return dogs[i+1] || null;
+}
+
 // ランダム生成
-function createRandomFallingObject(x, y){
-  const def = objectDefinitions[Math.floor(Math.random()*objectDefinitions.length)];
-  return Bodies.circle(x, y, def.size, {
-    label: def.label,
-    isStatic: true,
-    render:{ sprite:{ texture:def.texture } }
+function createDog(x,y){
+  const d = dogs[Math.floor(Math.random()*dogs.length)];
+  return Bodies.circle(x,y,d.size,{
+    label:d.label,
+    isStatic:true,
+    render:{
+      sprite:{
+        texture:d.img,
+        xScale:1,
+        yScale:1
+      }
+    }
   });
 }
 
-// 次の進化
-function getNext(label){
-  for(let i=0;i<objectDefinitions.length;i++){
-    if(objectDefinitions[i].label===label){
-      return objectDefinitions[i+1] || null;
-    }
-  }
-}
-
-// エンジン
+// ===== エンジン =====
 const engine = Engine.create();
 const render = Render.create({
   element: document.body,
@@ -70,60 +92,91 @@ const render = Render.create({
 const width = 400;
 const height = 600;
 
-// 壁
-World.add(engine.world, [
-  Bodies.rectangle(width/2,height, width,20,{isStatic:true}),
-  Bodies.rectangle(0,height/2,20,height,{isStatic:true}),
-  Bodies.rectangle(width,height/2,20,height,{isStatic:true})
-]);
+// 壁 + 天井ライン
+const ground = Bodies.rectangle(width/2,height, width,20,{isStatic:true});
+const left = Bodies.rectangle(0,height/2,20,height,{isStatic:true});
+const right = Bodies.rectangle(width,height/2,20,height,{isStatic:true});
+const ceiling = Bodies.rectangle(width/2,100, width,10,{isStatic:true, isSensor:true, label:"ceiling"});
 
-// 合体
+World.add(engine.world,[ground,left,right,ceiling]);
+
+// ===== NEXT表示 =====
+let nextDogDef = dogs[Math.floor(Math.random()*dogs.length)];
+$('#next').attr('src', nextDogDef.img);
+
+// ===== 初期 =====
+let current = createDog(width/2,50);
+World.add(engine.world,current);
+let falling = false;
+
+// ===== 操作 =====
+window.addEventListener('keydown',e=>{
+  if(gameOver) return;
+
+  if(e.code==="Space"){
+    falling = true;
+    Body.setStatic(current,false);
+
+    setTimeout(()=>{
+      current = Bodies.circle(width/2,50,nextDogDef.size,{
+        label:nextDogDef.label,
+        isStatic:true,
+        render:{ sprite:{ texture:nextDogDef.img } }
+      });
+
+      nextDogDef = dogs[Math.floor(Math.random()*dogs.length)];
+      $('#next').attr('src', nextDogDef.img);
+
+      falling=false;
+      World.add(engine.world,current);
+    },800);
+  }
+
+  if(e.code==="ArrowLeft" && !falling){
+    Body.translate(current,{x:-20,y:0});
+  }
+
+  if(e.code==="ArrowRight" && !falling){
+    Body.translate(current,{x:20,y:0});
+  }
+});
+
+// ===== 衝突 =====
 Events.on(engine,'collisionStart',e=>{
   e.pairs.forEach(pair=>{
+
+    // 🟥 天井 → ゲームオーバー
+    if(pair.bodyA.label==="ceiling" || pair.bodyB.label==="ceiling"){
+      gameOver = true;
+      alert("ゲームオーバー！");
+      location.reload();
+    }
+
+    // 🐶 合体
     if(pair.bodyA.label===pair.bodyB.label){
-      const next = getNext(pair.bodyA.label);
+      const next = getNextDog(pair.bodyA.label);
       if(next){
-        total_score += next.score;
-        $('#score').text(total_score);
+        score += next.score;
+        $('#score').text(score);
 
         const x = (pair.bodyA.position.x + pair.bodyB.position.x)/2;
         const y = (pair.bodyA.position.y + pair.bodyB.position.y)/2;
 
         World.remove(engine.world,[pair.bodyA,pair.bodyB]);
+
         World.add(engine.world,
-          Bodies.circle(x,y,next.size,{label:next.label})
+          Bodies.circle(x,y,next.size,{
+            label:next.label,
+            render:{ sprite:{ texture:next.img } }
+          })
         );
       }
     }
+
   });
 });
 
-// 操作
-let nextObject = createRandomFallingObject(width/2,50);
-let falling = false;
-World.add(engine.world,nextObject);
-
-window.addEventListener('keydown',e=>{
-  if(e.code==='Space'){
-    falling = true;
-    Body.setStatic(nextObject,false);
-
-    setTimeout(()=>{
-      nextObject = createRandomFallingObject(width/2,50);
-      falling = false;
-      World.add(engine.world,nextObject);
-    },1000);
-  }
-
-  if(e.code==='ArrowLeft' && !falling){
-    Body.translate(nextObject,{x:-20,y:0});
-  }
-
-  if(e.code==='ArrowRight' && !falling){
-    Body.translate(nextObject,{x:20,y:0});
-  }
-});
-
+// 実行
 Render.run(render);
 Engine.run(engine);
 </script>
