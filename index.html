@@ -1,165 +1,24 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<title>Face Hunter</title>
-<style>
-body {
-  margin: 0;
-  overflow: hidden;
-  background: black;
-  color: white;
-  font-family: sans-serif;
-}
-#game {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-}
-.face {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  cursor: pointer;
-  border-radius: 50%;
-  overflow: hidden;
-}
-.face img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-#ui {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-}
-#ranking {
-  position: absolute;
-  right: 10px;
-  top: 10px;
-  background: rgba(0,0,0,0.5);
-  padding: 10px;
-}
-button {
-  padding: 8px;
-  margin-top: 5px;
-}
-</style>
-</head>
-<body>
+const video = document.getElementById("video");
+const photoCanvas = document.getElementById("photoCanvas");
+const photoCtx = photoCanvas.getContext("2d");
 
-<div id="game">
-  <div id="ui">
-    <div>スコア: <span id="score">0</span></div>
-    <div>残り時間: <span id="time">30</span></div>
-    <input type="file" id="upload" accept="image/*"><br>
-    <button onclick="startGame()">スタート</button>
-  </div>
+let faceImage = null;
 
-  <div id="ranking">
-    <b>ランキング</b>
-    <ol id="rankList"></ol>
-  </div>
-</div>
-
-<script>
-let score = 0;
-let time = 30;
-let gameInterval;
-let spawnInterval;
-let playerImage = null;
-
-// 画像アップロード
-document.getElementById("upload").addEventListener("change", function(e){
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    playerImage = event.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-function spawnFace() {
-  const face = document.createElement("div");
-  face.className = "face";
-
-  const img = document.createElement("img");
-
-  if (playerImage) {
-    img.src = playerImage;
-  } else {
-    img.src = "https://via.placeholder.com/60"; // デフォルト
-  }
-
-  face.appendChild(img);
-
-  face.style.left = Math.random() * (window.innerWidth - 60) + "px";
-  face.style.top = Math.random() * (window.innerHeight - 60) + "px";
-
-  face.onclick = () => {
-    score += 10;
-    document.getElementById("score").innerText = score;
-    face.remove();
-  };
-
-  document.getElementById("game").appendChild(face);
-
-  setTimeout(() => face.remove(), 2000);
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => {
+      video.srcObject = stream;
+    })
+    .catch(() => alert("カメラ使えない"));
 }
 
-function startGame() {
-  score = 0;
-  time = 30;
-  document.getElementById("score").innerText = score;
-  document.getElementById("time").innerText = time;
+function takePhoto() {
+  photoCanvas.width = video.videoWidth;
+  photoCanvas.height = video.videoHeight;
+  photoCtx.drawImage(video, 0, 0);
 
-  clearInterval(gameInterval);
-  clearInterval(spawnInterval);
+  faceImage = new Image();
+  faceImage.src = photoCanvas.toDataURL("image/png");
 
-  spawnInterval = setInterval(spawnFace, 500);
-
-  gameInterval = setInterval(() => {
-    time--;
-    document.getElementById("time").innerText = time;
-
-    if (time <= 0) {
-      endGame();
-    }
-  }, 1000);
+  alert("撮影OK！");
 }
-
-function endGame() {
-  clearInterval(gameInterval);
-  clearInterval(spawnInterval);
-  saveScore(score);
-  loadRanking();
-  alert("ゲーム終了！スコア: " + score);
-}
-
-function saveScore(newScore) {
-  let scores = JSON.parse(localStorage.getItem("ranking")) || [];
-  scores.push(newScore);
-  scores.sort((a,b)=>b-a);
-  scores = scores.slice(0,5);
-  localStorage.setItem("ranking", JSON.stringify(scores));
-}
-
-function loadRanking() {
-  let scores = JSON.parse(localStorage.getItem("ranking")) || [];
-  const list = document.getElementById("rankList");
-  list.innerHTML = "";
-  scores.forEach(s => {
-    const li = document.createElement("li");
-    li.innerText = s;
-    list.appendChild(li);
-  });
-}
-
-loadRanking();
-</script>
-
-</body>
-</html>
