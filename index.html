@@ -2,33 +2,39 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>わんコレクション</title>
+<title>大型犬クイズ</title>
 <style>
   body {
-    font-family: "Arial", sans-serif;
-    background-color: #fff5ee;
+    font-family: Arial, sans-serif;
+    background-color: #fffaf0;
     text-align: center;
     padding: 20px;
   }
   h1 { color: #ff6f61; }
-  .dog-area {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-  }
-  .dog {
+  #quizBox {
     border: 2px solid #ccc;
     border-radius: 10px;
-    padding: 10px;
-    width: 120px;
-    cursor: pointer;
-    background-color: #fff8dc;
+    background-color: #fff5ee;
+    padding: 20px;
+    display: inline-block;
+    margin-bottom: 20px;
   }
-  .dog img {
-    width: 100px;
-    height: 100px;
+  #quizBox img {
+    width: 200px;
+    height: 200px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  button {
+    margin: 5px;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  #points {
+    font-weight: bold;
+    margin-bottom: 10px;
   }
   #log {
     margin-top: 20px;
@@ -36,69 +42,121 @@
     overflow-y: auto;
     border: 1px solid #ccc;
     padding: 10px;
-    background-color: #fdf5e6;
+    background-color: #fff8dc;
     text-align: left;
   }
-  #points {
-    font-weight: bold;
-    margin-bottom: 10px;
+  #ranking {
+    margin-top: 20px;
+    text-align: left;
+    display: inline-block;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    padding: 10px;
+    background-color: #f5f5dc;
   }
 </style>
 </head>
 <body>
 
-<h1>🐶わんコレクション🐶</h1>
+<h1>🐶大型犬クイズ🐶</h1>
 <div id="points">ポイント: 0</div>
 
-<div class="dog-area" id="dogArea">
-  <!-- 犬がここに表示される -->
+<div id="quizBox">
+  <img id="dogImg" src="" alt="犬の写真">
+  <h3 id="question">どの犬種でしょう？</h3>
+  <div>
+    <button onclick="checkAnswer(0)" id="btn0">選択肢1</button>
+    <button onclick="checkAnswer(1)" id="btn1">選択肢2</button>
+    <button onclick="checkAnswer(2)" id="btn2">選択肢3</button>
+    <button onclick="checkAnswer(3)" id="btn3">選択肢4</button>
+  </div>
 </div>
 
 <div id="log"></div>
 
+<div id="ranking">
+  <h3>🏆ランキング</h3>
+  <ol id="rankList"></ol>
+</div>
+
 <script>
-const dogs = [
-  { name: "ちわわ", img: "https://i.imgur.com/0KXy6.png", quiz: "小さな犬です。犬種は？", answer: "ちわわ", rare: false },
-  { name: "ポメラニアン", img: "https://i.imgur.com/1g0qC.png", quiz: "ふわふわした毛の犬です。犬種は？", answer: "ポメラニアン", rare: false },
-  { name: "ゴールデンレトリバー", img: "https://i.imgur.com/Kz0qG.png", quiz: "大型で人懐こい犬です。犬種は？", answer: "ゴールデンレトリバー", rare: true },
+const quizData = [
+  {
+    name: "ゴールデンレトリバー",
+    img: "https://i.imgur.com/Kz0qG.png",
+    options: ["ラブラドールレトリバー", "ゴールデンレトリバー", "セントバーナード", "グレートデーン"],
+    answer: 1
+  },
+  {
+    name: "セントバーナード",
+    img: "https://i.imgur.com/0A0rP.png",
+    options: ["セントバーナード", "ゴールデンレトリバー", "グレートデーン", "ラブラドールレトリバー"],
+    answer: 0
+  },
+  {
+    name: "グレートデーン",
+    img: "https://i.imgur.com/8FzCj.png",
+    options: ["グレートデーン", "セントバーナード", "ラブラドールレトリバー", "ゴールデンレトリバー"],
+    answer: 0
+  },
+  {
+    name: "ラブラドールレトリバー",
+    img: "https://i.imgur.com/1qBzY.png",
+    options: ["ラブラドールレトリバー", "グレートデーン", "セントバーナード", "ゴールデンレトリバー"],
+    answer: 0
+  }
 ];
 
 let points = 0;
-const dogArea = document.getElementById('dogArea');
-const log = document.getElementById('log');
-const pointsDisplay = document.getElementById('points');
+let current = 0;
+let ranking = [];
 
-function logMessage(msg) {
+function showQuiz() {
+  if(current >= quizData.length) {
+    document.getElementById('quizBox').innerHTML = `<h3>🎉クイズ終了！合計ポイント: ${points}</h3>`;
+    updateRanking();
+    return;
+  }
+  const q = quizData[current];
+  document.getElementById('dogImg').src = q.img;
+  document.getElementById('dogImg').alt = q.name;
+  q.options.forEach((opt,i)=>{
+    document.getElementById('btn'+i).textContent = opt;
+  });
+}
+
+function logMessage(msg){
+  const log = document.getElementById('log');
   log.innerHTML += msg + "<br>";
   log.scrollTop = log.scrollHeight;
 }
 
-function spawnDogs() {
-  dogArea.innerHTML = "";
-  const shuffled = dogs.sort(() => 0.5 - Math.random());
-  shuffled.slice(0, 3).forEach(dog => {
-    const dogDiv = document.createElement('div');
-    dogDiv.className = "dog";
-    dogDiv.innerHTML = `<h3>${dog.name}</h3><img src="${dog.img}" alt="${dog.name}">`;
-    dogDiv.onclick = () => captureDog(dog);
-    dogArea.appendChild(dogDiv);
+function checkAnswer(choice){
+  const q = quizData[current];
+  if(choice === q.answer){
+    points += 10;
+    logMessage(`✅ 正解！ +10ポイント`);
+  } else {
+    logMessage(`❌ 不正解…正解は ${q.options[q.answer]} です`);
+  }
+  ranking.push({name: q.name, pts: points});
+  updateRanking();
+  current++;
+  showQuiz();
+}
+
+function updateRanking(){
+  const rankList = document.getElementById('rankList');
+  const sorted = [...ranking].sort((a,b)=>b.pts-a.pts);
+  rankList.innerHTML = "";
+  sorted.forEach(item=>{
+    const li = document.createElement('li');
+    li.textContent = `${item.name} : ${item.pts}pt`;
+    rankList.appendChild(li);
   });
 }
 
-function captureDog(dog) {
-  const userAnswer = prompt(dog.quiz);
-  if(userAnswer && userAnswer.trim() === dog.answer) {
-    const earned = dog.rare ? 20 : 10;
-    points += earned;
-    pointsDisplay.textContent = `ポイント: ${points}`;
-    logMessage(`✅ ${dog.name}を捕まえた！ +${earned}ポイント`);
-  } else {
-    logMessage(`❌ ${dog.name}の捕獲失敗…`);
-  }
-  spawnDogs();
-}
-
-spawnDogs();
+showQuiz();
 </script>
 
 </body>
