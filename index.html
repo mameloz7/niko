@@ -1,192 +1,227 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>人狼ゲーム 完全版</title>
 
 <style>
-body {
-  font-family: sans-serif;
-  text-align: center;
-  background: #222;
-  color: white;
+body{
+  font-family:sans-serif;
+  text-align:center;
+  background:linear-gradient(135deg,#1a1a1a,#333);
+  color:white;
 }
-
-button {
-  padding: 10px;
-  margin: 5px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
+.box{
+  background:#333;
+  padding:15px;
+  margin:15px;
+  border-radius:10px;
+  display:inline-block;
 }
-
-.player {
-  margin: 5px;
-  padding: 10px;
-  background: #444;
-  display: inline-block;
+button{
+  padding:10px;
+  margin:5px;
+  border:none;
+  border-radius:8px;
+  background:#ff4c4c;
+  color:white;
 }
-
-.dead {
-  background: #111;
-  color: gray;
-}
+.dead{color:gray;}
+#role{font-size:22px;margin-top:10px;}
+a{color:skyblue;}
 </style>
 </head>
 
 <body>
 
-<h1>🐺 人狼ゲーム（機能つき）</h1>
-<button onclick="startGame()">ゲーム開始</button>
+<h1>🐺 人狼ゲーム（合体版）</h1>
 
-<div id="roleArea"></div>
-<div id="gameArea" style="display:none;"></div>
+<div class="box">
+<h2>📖 遊び方</h2>
+<p>
+① ゲーム作成<br>
+② URL共有<br>
+③ 参加する<br>
+④ 役職確認<br>
+⑤ ゲーム開始
+</p>
+</div>
+
+<button onclick="createGame()">ゲーム作成</button>
+<p id="share"></p>
+
+<button onclick="joinGame()">参加する</button>
+<div id="role" onclick="showRole()">タップで役職表示</div>
+
+<hr>
+
+<button onclick="startGame()">ゲーム開始（進行役）</button>
+<div id="game"></div>
 
 <script>
-let players = [];
-let roles = [];
-let alive = [];
-let phase = "day";
-let knightGuard = -1;
+let myIndex=null;
+let roleList=[];
+let players=[];
+let phase="day";
+let guard=-1;
 
-function startGame() {
-  roles = [
-    "人狼",
-    "市民","市民","市民",
-    "狂人",
-    "占い師",
-    "騎士"
-  ];
+// ===== URL系 =====
 
-  roles.sort(() => Math.random() - 0.5);
+// 作成
+function createGame(){
+  let roles=["人狼","市民","市民","市民","狂人","占い師","騎士"];
+  roles.sort(()=>Math.random()-0.5);
 
-  players = [];
-  alive = [];
+  let url=location.origin+location.pathname+
+  "?roles="+encodeURIComponent(roles.join(","))+"&used=";
 
-  for (let i = 0; i < roles.length; i++) {
-    players.push({id:i, role:roles[i], alive:true});
-    alive.push(true);
+  document.getElementById("share").innerHTML=
+  "URL👇<br><a href='"+url+"'>"+url+"</a>";
+}
+
+// 参加
+function joinGame(){
+  let params=new URLSearchParams(location.search);
+  let roles=params.get("roles");
+  let used=params.get("used")||"";
+
+  if(!roles){alert("先に作成");return;}
+
+  roleList=roles.split(",");
+  let usedArr=used?used.split(","):[];
+
+  for(let i=0;i<roleList.length;i++){
+    if(!usedArr.includes(String(i))){
+      myIndex=i;
+      usedArr.push(String(i));
+      break;
+    }
   }
 
-  showRoles();
+  if(myIndex===null){alert("満員");return;}
+
+  let newUrl=location.origin+location.pathname+
+  "?roles="+encodeURIComponent(roleList.join(","))+
+  "&used="+usedArr.join(",");
+
+  history.replaceState(null,"",newUrl);
+
+  alert("あなたはP"+(myIndex+1));
 }
 
-function showRoles() {
-  let html = "<h2>役職確認（交代で見て）</h2>";
-  players.forEach((p,i)=>{
-    html += `<button onclick="alert('プレイヤー${i+1}：${p.role}')">P${i+1}</button>`;
-  });
-  html += `<br><button onclick="startGamePlay()">ゲーム開始</button>`;
-  document.getElementById("roleArea").innerHTML = html;
+// 役職
+function showRole(){
+  if(myIndex===null){alert("参加して");return;}
+  document.getElementById("role").innerText=
+  "あなたの役職："+roleList[myIndex];
 }
 
-function startGamePlay() {
-  document.getElementById("roleArea").innerHTML = "";
-  document.getElementById("gameArea").style.display = "block";
+// ===== ゲーム進行 =====
+
+function startGame(){
+  if(roleList.length===0){
+    alert("先に参加して");
+    return;
+  }
+
+  players=roleList.map((r,i)=>({
+    id:i,
+    role:r,
+    alive:true
+  }));
+
   render();
 }
 
-function render() {
-  let html = `<h2>現在：${phase === "day" ? "昼（投票）" : "夜（能力）"}</h2>`;
+function render(){
+  let html=`<h2>${phase==="day"?"昼":"夜"}</h2>`;
 
   players.forEach((p,i)=>{
-    html += `<div class="player ${!p.alive ? 'dead':''}">
-      P${i+1}<br>${p.alive ? "" : "💀"}
+    html+=`<div class="${!p.alive?"dead":""}">
+    P${i+1} ${p.alive?"":"💀"}
     </div>`;
   });
 
-  html += "<br>";
+  html+="<br>";
 
-  if (phase === "day") {
-    html += "<h3>投票（処刑）</h3>";
+  if(phase==="day"){
+    html+="<h3>投票</h3>";
     players.forEach((p,i)=>{
       if(p.alive){
-        html += `<button onclick="vote(${i})">P${i+1}</button>`;
+        html+=`<button onclick="vote(${i})">P${i+1}</button>`;
       }
     });
-    html += `<br><button onclick="phase='night';render()">夜へ</button>`;
-  } else {
-    html += "<h3>夜の行動</h3>";
-
-    // 占い
-    html += "<p>🔮占い</p>";
-    players.forEach((p,i)=>{
-      if(p.alive){
-        html += `<button onclick="fortune(${i})">P${i+1}</button>`;
-      }
-    });
-
-    // 騎士
-    html += "<p>🛡騎士</p>";
-    players.forEach((p,i)=>{
-      if(p.alive){
-        html += `<button onclick="guard(${i})">P${i+1}</button>`;
-      }
-    });
-
-    // 人狼
-    html += "<p>🐺襲撃</p>";
-    players.forEach((p,i)=>{
-      if(p.alive){
-        html += `<button onclick="attack(${i})">P${i+1}</button>`;
-      }
-    });
-
-    html += `<br><button onclick="phase='day';render()">昼へ</button>`;
+    html+=`<br><button onclick="phase='night';render()">夜へ</button>`;
   }
 
-  document.getElementById("gameArea").innerHTML = html;
+  if(phase==="night"){
+    html+="<h3>夜行動</h3>";
+
+    html+="🐺<br>";
+    players.forEach((p,i)=>{
+      if(p.alive){
+        html+=`<button onclick="attack(${i})">P${i+1}</button>`;
+      }
+    });
+
+    html+="<br>🔮<br>";
+    players.forEach((p,i)=>{
+      if(p.alive){
+        html+=`<button onclick="fortune(${i})">P${i+1}</button>`;
+      }
+    });
+
+    html+="<br>🛡<br>";
+    players.forEach((p,i)=>{
+      if(p.alive){
+        html+=`<button onclick="guardPlayer(${i})">P${i+1}</button>`;
+      }
+    });
+
+    html+=`<br><button onclick="phase='day';render()">昼へ</button>`;
+  }
+
+  document.getElementById("game").innerHTML=html;
 }
 
-// 投票
+// ===== 行動 =====
+
 function vote(i){
-  players[i].alive = false;
-  alert("P"+(i+1)+"を処刑した");
+  players[i].alive=false;
+  alert("処刑");
   checkWin();
   render();
 }
 
-// 占い
-function fortune(i){
-  let role = players[i].role;
-  if(role === "人狼"){
-    alert("結果：人狼");
-  } else {
-    alert("結果：白");
-  }
-}
-
-// 騎士
-function guard(i){
-  knightGuard = i;
-  alert("P"+(i+1)+"を守った");
-}
-
-// 人狼襲撃
 function attack(i){
-  if(i === knightGuard){
-    alert("守られていた！");
-  } else {
-    players[i].alive = false;
-    alert("P"+(i+1)+"が襲撃された");
+  if(i===guard){
+    alert("守られた");
+  }else{
+    players[i].alive=false;
+    alert("襲撃成功");
   }
-  knightGuard = -1;
+  guard=-1;
   checkWin();
   render();
 }
 
-// 勝敗判定
-function checkWin(){
-  let wolf = players.filter(p=>p.role==="人狼" && p.alive).length;
-  let human = players.filter(p=>p.role!=="人狼" && p.alive).length;
+function fortune(i){
+  alert(players[i].role==="人狼"?"人狼":"白");
+}
 
-  if(wolf === 0){
-    alert("村人陣営の勝ち！");
-  }
-  if(wolf >= human){
-    alert("人狼陣営の勝ち！");
-  }
+function guardPlayer(i){
+  guard=i;
+  alert("守った");
+}
+
+// 勝敗
+function checkWin(){
+  let wolf=players.filter(p=>p.role==="人狼"&&p.alive).length;
+  let human=players.filter(p=>p.role!=="人狼"&&p.alive).length;
+
+  if(wolf===0) alert("村人勝ち");
+  if(wolf>=human) alert("人狼勝ち");
 }
 </script>
 
